@@ -7,3 +7,6 @@ coverage
 .vscode
 .DS_Store
 *.log
+/src/generated/prisma
+
+/src/generated/prisma
