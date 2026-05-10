@@ -1,3 +1,6 @@
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+
 import {
   ConflictError,
   ForbiddenError,
@@ -5,6 +8,8 @@ import {
   WorkoutPlanNotActiveError,
 } from "../errors/index.js";
 import { prisma } from "../lib/db.js";
+
+dayjs.extend(utc);
 
 interface InputDto {
   userId: string;
@@ -45,18 +50,22 @@ export class StartWorkoutSession {
       throw new NotFoundError("Workout day not found");
     }
 
+    const today = dayjs.utc().startOf("day");
+    const weekStart = today.startOf("week");
+    const weekEnd = today.endOf("week");
+
     const existingSession = await prisma.workoutSession.findFirst({
-      where: { workoutDayId: dto.workoutDayId },
+      where: {
+        workoutDayId: dto.workoutDayId,
+        startedAt: { gte: weekStart.toDate(), lte: weekEnd.toDate() },
+      },
     });
 
     if (existingSession) {
-      throw new ConflictError("A session for this workout day has already been started");
+      throw new ConflictError("A session for this workout day has already been started this week");
     }
 
-    const now = new Date();
-    const utcMidnight = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+    const utcMidnight = today.toDate();
 
     const session = await prisma.workoutSession.create({
       data: {

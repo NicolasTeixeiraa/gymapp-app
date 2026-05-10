@@ -119,7 +119,9 @@ export class GetHomeData {
       completedByDate.get(sessionDate)!.add(session.workoutDay.weekDay);
     }
 
-    const plannedWeekDays = new Set(activePlan.workoutDays.map((d) => d.weekDay));
+    const plannedWeekDays = new Set(
+      activePlan.workoutDays.filter((d) => !d.isRest).map((d) => d.weekDay),
+    );
 
     let streak = 0;
     let currentDate = date;
