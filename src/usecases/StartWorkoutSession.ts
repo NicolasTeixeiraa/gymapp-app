@@ -53,10 +53,15 @@ export class StartWorkoutSession {
       throw new ConflictError("A session for this workout day has already been started");
     }
 
+    const now = new Date();
+    const utcMidnight = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+
     const session = await prisma.workoutSession.create({
       data: {
         workoutDayId: dto.workoutDayId,
-        startedAt: new Date(),
+        startedAt: utcMidnight,
       },
     });
 
