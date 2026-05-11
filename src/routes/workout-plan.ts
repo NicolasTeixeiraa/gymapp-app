@@ -10,16 +10,8 @@ import {
   WorkoutPlanNotActiveError,
 } from "../errors/index.js";
 import { auth } from "../lib/auth.js";
-import {
-  ErrorSchema,
-  StartWorkoutSessionSchema,
-  UpdateWorkoutSessionBodySchema,
-  UpdateWorkoutSessionSchema,
-  WorkoutDayDetailSchema,
-  WorkoutPlanDetailSchema,
-  WorkoutPlanSchema,
-  WorkoutPlansListSchema,
-} from "../schemas/index.js";
+import { WeekDay } from "../generated/prisma/enums.js";
+import { ErrorSchema, WorkoutPlanSchema } from "../schemas/index.js";
 import { CreateWorkoutPlan } from "../usecases/CreateWorkoutPlan.js";
 import { GetWorkoutDay } from "../usecases/GetWorkoutDay.js";
 import { GetWorkoutPlan } from "../usecases/GetWorkoutPlan.js";
@@ -41,7 +33,35 @@ export const workoutPlanRoutes = async (app: FastifyInstance) => {
           .optional(),
       }),
       response: {
-        200: WorkoutPlansListSchema,
+        200: z.object({
+          workoutPlans: z.array(
+            z.object({
+              id: z.string().uuid(),
+              name: z.string(),
+              isActive: z.boolean(),
+              workoutDays: z.array(
+                z.object({
+                  id: z.string().uuid(),
+                  name: z.string(),
+                  weekDay: z.enum(WeekDay),
+                  isRest: z.boolean(),
+                  estimatedDurationInSeconds: z.number(),
+                  coverImageUrl: z.url().optional(),
+                  exercises: z.array(
+                    z.object({
+                      id: z.string().uuid(),
+                      name: z.string(),
+                      order: z.number(),
+                      sets: z.number(),
+                      reps: z.number(),
+                      restTimeInSeconds: z.number(),
+                    }),
+                  ),
+                }),
+              ),
+            }),
+          ),
+        }),
         401: ErrorSchema,
         500: ErrorSchema,
       },
@@ -83,7 +103,21 @@ export const workoutPlanRoutes = async (app: FastifyInstance) => {
         workoutPlanId: z.string().uuid(),
       }),
       response: {
-        200: WorkoutPlanDetailSchema,
+        200: z.object({
+          id: z.string().uuid(),
+          name: z.string(),
+          workoutDays: z.array(
+            z.object({
+              id: z.string().uuid(),
+              weekDay: z.enum(WeekDay),
+              name: z.string(),
+              isRest: z.boolean(),
+              coverImageUrl: z.url().optional(),
+              estimatedDurationInSeconds: z.number(),
+              exercisesCount: z.number(),
+            }),
+          ),
+        }),
         401: ErrorSchema,
         403: ErrorSchema,
         404: ErrorSchema,
@@ -140,7 +174,33 @@ export const workoutPlanRoutes = async (app: FastifyInstance) => {
         workoutDayId: z.string().uuid(),
       }),
       response: {
-        200: WorkoutDayDetailSchema,
+        200: z.object({
+          id: z.string().uuid(),
+          name: z.string(),
+          isRest: z.boolean(),
+          coverImageUrl: z.url().optional(),
+          estimatedDurationInSeconds: z.number(),
+          weekDay: z.enum(WeekDay),
+          exercises: z.array(
+            z.object({
+              id: z.string().uuid(),
+              name: z.string(),
+              order: z.number(),
+              workoutDayId: z.string().uuid(),
+              sets: z.number(),
+              reps: z.number(),
+              restTimeInSeconds: z.number(),
+            }),
+          ),
+          sessions: z.array(
+            z.object({
+              id: z.string().uuid(),
+              workoutDayId: z.string().uuid(),
+              startedAt: z.iso.date(),
+              completedAt: z.iso.date().optional(),
+            }),
+          ),
+        }),
         401: ErrorSchema,
         403: ErrorSchema,
         404: ErrorSchema,
@@ -247,7 +307,7 @@ export const workoutPlanRoutes = async (app: FastifyInstance) => {
         workoutDayId: z.string().uuid(),
       }),
       response: {
-        201: StartWorkoutSessionSchema,
+        201: z.object({ userWorkoutSessionId: z.string().uuid() }),
         401: ErrorSchema,
         403: ErrorSchema,
         404: ErrorSchema,
@@ -319,9 +379,15 @@ export const workoutPlanRoutes = async (app: FastifyInstance) => {
         workoutDayId: z.string().uuid(),
         sessionId: z.string().uuid(),
       }),
-      body: UpdateWorkoutSessionBodySchema,
+      body: z.object({
+        completedAt: z.iso.datetime(),
+      }),
       response: {
-        200: UpdateWorkoutSessionSchema,
+        200: z.object({
+          id: z.string().uuid(),
+          completedAt: z.iso.datetime(),
+          startedAt: z.iso.datetime(),
+        }),
         401: ErrorSchema,
         403: ErrorSchema,
         404: ErrorSchema,
