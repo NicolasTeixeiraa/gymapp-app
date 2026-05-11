@@ -4,9 +4,8 @@ import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod/v4";
 
 import { NotFoundError } from "../errors/index.js";
-import { WeekDay } from "../generated/prisma/enums.js";
 import { auth } from "../lib/auth.js";
-import { ErrorSchema } from "../schemas/index.js";
+import { ErrorSchema, HomeDataSchema } from "../schemas/index.js";
 import { GetHomeData } from "../usecases/GetHomeData.js";
 
 export const homeRoutes = async (app: FastifyInstance) => {
@@ -20,27 +19,7 @@ export const homeRoutes = async (app: FastifyInstance) => {
         date: z.iso.date(),
       }),
       response: {
-        200: z.object({
-          activeWorkoutPlanId: z.string().uuid(),
-          todayWorkoutDay: z.object({
-            workoutPlanId: z.string().uuid(),
-            id: z.string().uuid(),
-            name: z.string(),
-            isRest: z.boolean(),
-            weekDay: z.enum(WeekDay),
-            estimatedDurationInSeconds: z.number(),
-            coverImageUrl: z.url().optional(),
-            exercisesCount: z.number(),
-          }),
-          workoutStreak: z.number(),
-          consistencyByDay: z.record(
-            z.iso.date(),
-            z.object({
-              workoutDayCompleted: z.boolean(),
-              workoutDayStarted: z.boolean(),
-            }),
-          ),
-        }),
+        200: HomeDataSchema,
         401: ErrorSchema,
         404: ErrorSchema,
         500: ErrorSchema,
