@@ -10,3 +10,7 @@ coverage
 /src/generated/prisma
 
 /src/generated/prisma
+.claude/settings.local.json
+.env.example
+.claude/settings.local.json
+.claude/settings.local.json
