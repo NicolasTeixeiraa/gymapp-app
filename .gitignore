@@ -3,14 +3,10 @@ dist
 build
 .env
 .env.local
+.env.example
 coverage
 .vscode
 .DS_Store
 *.log
 /src/generated/prisma
-
-/src/generated/prisma
-.claude/settings.local.json
-.env.example
-.claude/settings.local.json
 .claude/settings.local.json
