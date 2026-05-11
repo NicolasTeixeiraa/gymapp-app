@@ -4,7 +4,7 @@ import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod/v4";
 
 import { auth } from "../lib/auth.js";
-import { ErrorSchema } from "../schemas/index.js";
+import { ErrorSchema, StatsSchema } from "../schemas/index.js";
 import { GetStats } from "../usecases/GetStats.js";
 
 export const statsRoutes = async (app: FastifyInstance) => {
@@ -19,19 +19,7 @@ export const statsRoutes = async (app: FastifyInstance) => {
         to: z.iso.date(),
       }),
       response: {
-        200: z.object({
-          workoutStreak: z.number(),
-          consistencyByDay: z.record(
-            z.iso.date(),
-            z.object({
-              workoutDayCompleted: z.boolean(),
-              workoutDayStarted: z.boolean(),
-            }),
-          ),
-          completedWorkoutsCount: z.number(),
-          conclusionRate: z.number(),
-          totalTimeInSeconds: z.number(),
-        }),
+        200: StatsSchema,
         401: ErrorSchema,
         500: ErrorSchema,
       },
