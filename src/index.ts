@@ -156,8 +156,8 @@ app.route({
 
 try {
   await app.listen({
+    host: "0.0.0.0",
     port: env.PORT,
-    host: "localhost",
   });
 } catch (err) {
   app.log.error(err);
