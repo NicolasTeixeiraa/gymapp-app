@@ -1,6 +1,8 @@
 import { openai } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   stepCountIs,
   streamText,
   tool,
@@ -101,111 +103,130 @@ export const aiRoutes = async (app: FastifyInstance) => {
       const { messages } = request.body;
 
       const modelMessages = await convertToModelMessages(messages);
-      const result = streamText({
-        model: openai("gpt-4o-mini"),
-        system: SYSTEM_PROMPT,
-        tools: {
-          getUserTrainData: tool({
-            description:
-              "Retorna os dados de treino do usuário (peso, altura, idade, % de gordura). Chame SEMPRE antes de qualquer interação.",
-            inputSchema: z.object({}),
-            execute: async () => {
-              const getUserTrainData = new GetUserTrainData();
-              return getUserTrainData.execute({ userId });
+
+      const stream = createUIMessageStream({
+        execute: async ({ writer }) => {
+          const result = streamText({
+            model: openai("gpt-4o-mini"),
+            system: SYSTEM_PROMPT,
+            tools: {
+              getUserTrainData: tool({
+                description:
+                  "Retorna os dados de treino do usuário (peso, altura, idade, % de gordura). Chame SEMPRE antes de qualquer interação.",
+                inputSchema: z.object({}),
+                execute: async () => {
+                  const getUserTrainData = new GetUserTrainData();
+                  return getUserTrainData.execute({ userId });
+                },
+              }),
+              updateUserTrainData: tool({
+                description: "Cria ou atualiza os dados de treino do usuário.",
+                inputSchema: z.object({
+                  weightInGrams: z.number().describe("Peso em gramas."),
+                  heightInCentimeters: z
+                    .number()
+                    .describe("Altura em centímetros."),
+                  age: z.number().describe("Idade em anos."),
+                  bodyFatPercentage: z
+                    .number()
+                    .int()
+                    .min(0)
+                    .max(100)
+                    .describe(
+                      "Percentual de gordura corporal como inteiro de 0 a 100 (ex: 15 para 15%).",
+                    ),
+                }),
+                execute: async (input) => {
+                  const upsertUserTrainData = new UpsertUserTrainData();
+                  return upsertUserTrainData.execute({ userId, ...input });
+                },
+              }),
+              getWorkoutPlans: tool({
+                description: "Lista todos os planos de treino do usuário.",
+                inputSchema: z.object({}),
+                execute: async () => {
+                  const getWorkoutPlans = new GetWorkoutPlans();
+                  return getWorkoutPlans.execute({ userId });
+                },
+              }),
+              createWorkoutPlan: tool({
+                description:
+                  "Cria um novo plano de treino completo com exatamente 7 dias (MONDAY a SUNDAY).",
+                inputSchema: z.object({
+                  name: z.string().describe("Nome do plano de treino."),
+                  workoutDays: z
+                    .array(
+                      z.object({
+                        name: z
+                          .string()
+                          .describe(
+                            "Nome descritivo do dia (ex: 'Superior A - Peito e Tríceps', 'Descanso').",
+                          ),
+                        weekDay: z.enum(WeekDay).describe("Dia da semana."),
+                        isRest: z
+                          .boolean()
+                          .describe(
+                            "true para dia de descanso, false para dia de treino.",
+                          ),
+                        estimatedDurationInSeconds: z
+                          .number()
+                          .describe(
+                            "Duração estimada em segundos (0 para dias de descanso).",
+                          ),
+                        coverImageUrl: z
+                          .string()
+                          .url()
+                          .describe("URL da imagem de capa do dia."),
+                        exercises: z
+                          .array(
+                            z.object({
+                              order: z
+                                .number()
+                                .describe("Ordem do exercício na sessão."),
+                              name: z.string().describe("Nome do exercício."),
+                              sets: z.number().describe("Número de séries."),
+                              reps: z
+                                .number()
+                                .describe("Número de repetições."),
+                              restTimeInSeconds: z
+                                .number()
+                                .describe(
+                                  "Tempo de descanso entre séries em segundos.",
+                                ),
+                            }),
+                          )
+                          .describe(
+                            "Lista de exercícios. Vazia para dias de descanso.",
+                          ),
+                      }),
+                    )
+                    .describe("Array com exatamente 7 dias (MONDAY a SUNDAY)."),
+                }),
+                execute: async (input) => {
+                  const createWorkoutPlanUseCase = new CreateWorkoutPlan();
+                  const plan = await createWorkoutPlanUseCase.execute({
+                    userId,
+                    ...input,
+                  });
+                  writer.write({
+                    type: "data-workout-plan-created",
+                    data: { id: plan.id },
+                  });
+                  return plan;
+                },
+              }),
             },
-          }),
-          updateUserTrainData: tool({
-            description: "Cria ou atualiza os dados de treino do usuário.",
-            inputSchema: z.object({
-              weightInGrams: z.number().describe("Peso em gramas."),
-              heightInCentimeters: z
-                .number()
-                .describe("Altura em centímetros."),
-              age: z.number().describe("Idade em anos."),
-              bodyFatPercentage: z
-                .number()
-                .int()
-                .min(0)
-                .max(100)
-                .describe(
-                  "Percentual de gordura corporal como inteiro de 0 a 100 (ex: 15 para 15%).",
-                ),
-            }),
-            execute: async (input) => {
-              const upsertUserTrainData = new UpsertUserTrainData();
-              return upsertUserTrainData.execute({ userId, ...input });
-            },
-          }),
-          getWorkoutPlans: tool({
-            description: "Lista todos os planos de treino do usuário.",
-            inputSchema: z.object({}),
-            execute: async () => {
-              const getWorkoutPlans = new GetWorkoutPlans();
-              return getWorkoutPlans.execute({ userId });
-            },
-          }),
-          createWorkoutPlan: tool({
-            description:
-              "Cria um novo plano de treino completo com exatamente 7 dias (MONDAY a SUNDAY).",
-            inputSchema: z.object({
-              name: z.string().describe("Nome do plano de treino."),
-              workoutDays: z
-                .array(
-                  z.object({
-                    name: z
-                      .string()
-                      .describe(
-                        "Nome descritivo do dia (ex: 'Superior A - Peito e Tríceps', 'Descanso').",
-                      ),
-                    weekDay: z.enum(WeekDay).describe("Dia da semana."),
-                    isRest: z
-                      .boolean()
-                      .describe(
-                        "true para dia de descanso, false para dia de treino.",
-                      ),
-                    estimatedDurationInSeconds: z
-                      .number()
-                      .describe(
-                        "Duração estimada em segundos (0 para dias de descanso).",
-                      ),
-                    coverImageUrl: z
-                      .string()
-                      .url()
-                      .describe("URL da imagem de capa do dia."),
-                    exercises: z
-                      .array(
-                        z.object({
-                          order: z
-                            .number()
-                            .describe("Ordem do exercício na sessão."),
-                          name: z.string().describe("Nome do exercício."),
-                          sets: z.number().describe("Número de séries."),
-                          reps: z.number().describe("Número de repetições."),
-                          restTimeInSeconds: z
-                            .number()
-                            .describe(
-                              "Tempo de descanso entre séries em segundos.",
-                            ),
-                        }),
-                      )
-                      .describe(
-                        "Lista de exercícios. Vazia para dias de descanso.",
-                      ),
-                  }),
-                )
-                .describe("Array com exatamente 7 dias (MONDAY a SUNDAY)."),
-            }),
-            execute: async (input) => {
-              const createWorkoutPlan = new CreateWorkoutPlan();
-              return createWorkoutPlan.execute({ userId, ...input });
-            },
-          }),
+            stopWhen: stepCountIs(10),
+            messages: modelMessages,
+          });
+
+          for await (const chunk of result.toUIMessageStream()) {
+            writer.write(chunk);
+          }
         },
-        stopWhen: stepCountIs(5),
-        messages: modelMessages,
       });
 
-      const response = result.toUIMessageStreamResponse();
+      const response = createUIMessageStreamResponse({ stream });
       reply.status(200);
       response.headers.forEach((value, key) => reply.header(key, value));
       return reply.send(response.body as unknown);
